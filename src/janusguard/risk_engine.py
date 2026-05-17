@@ -340,6 +340,59 @@ def assess_risk(
         )
 
     # ------------------------------------------------------------------
+    # ZIP comment findings.
+    # ------------------------------------------------------------------
+    if structure.zip_comment_is_binary:
+        assessment.findings.append(
+            Finding(
+                code="STRUCT-ZIP-COMMENT-BINARY",
+                level=RiskLevel.LOW,
+                title="ZIP comment contains non-printable bytes",
+                detail=(
+                    f"The ZIP comment field ({structure.zip_comment_length} bytes) "
+                    "contains binary data. Legitimate build tools occasionally write "
+                    "text comments, but binary content is unusual and may indicate "
+                    "data hidden in the archive metadata."
+                ),
+            )
+        )
+    elif structure.zip_comment_length > 0:
+        assessment.findings.append(
+            Finding(
+                code="STRUCT-ZIP-COMMENT",
+                level=RiskLevel.INFO,
+                title="ZIP comment field is non-empty",
+                detail=(
+                    f"The archive has a {structure.zip_comment_length}-byte printable "
+                    "ZIP comment. This is not inherently suspicious — some build tools "
+                    "write version strings here — but it is worth noting."
+                ),
+            )
+        )
+
+    # ------------------------------------------------------------------
+    # Duplicate ZIP entry findings.
+    # ------------------------------------------------------------------
+    if structure.duplicate_entry_names:
+        dupes = ", ".join(f"`{n}`" for n in structure.duplicate_entry_names[:5])
+        if len(structure.duplicate_entry_names) > 5:
+            dupes += f" … and {len(structure.duplicate_entry_names) - 5} more"
+        assessment.findings.append(
+            Finding(
+                code="STRUCT-DUPLICATE-ENTRY",
+                level=RiskLevel.MEDIUM,
+                title="Duplicate filenames found in the ZIP directory",
+                detail=(
+                    f"The central directory lists {len(structure.duplicate_entry_names)} "
+                    f"filename(s) more than once: {dupes}. "
+                    "Android's PackageParser historically resolved ambiguous entries "
+                    "inconsistently, making duplicate names a known vector for "
+                    "tampered APKs. Manual inspection is recommended."
+                ),
+            )
+        )
+
+    # ------------------------------------------------------------------
     # Add neutral context for any signing-block parsing notes.
     # ------------------------------------------------------------------
     for note in signatures.notes:

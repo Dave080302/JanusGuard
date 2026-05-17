@@ -125,6 +125,11 @@ def render_markdown(
     out(f"- Starts with compact-DEX magic: {structure.starts_with_cdex_magic}")
     out(f"- Janus dual-format pattern detected: {structure.janus_pattern_detected}")
     out(f"- Valid ZIP archive: {apk.is_valid_zip}")
+    out(f"- ZIP comment length: {structure.zip_comment_length} bytes"
+        + (" (contains binary data)" if structure.zip_comment_is_binary else ""))
+    if structure.duplicate_entry_names:
+        out(f"- Duplicate ZIP entries: {len(structure.duplicate_entry_names)}"
+            f" ({', '.join(f'`{n}`' for n in structure.duplicate_entry_names[:5])})")
     if apk.read_errors:
         out("")
         out("**ZIP read errors:**")
@@ -272,6 +277,8 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     <tr><th>Starts with compact-DEX magic</th><td>{starts_cdex}</td></tr>
     <tr><th>Janus dual-format pattern</th><td>{janus_pattern}</td></tr>
     <tr><th>Valid ZIP archive</th><td>{is_zip}</td></tr>
+    <tr><th>ZIP comment length</th><td>{zip_comment_length}</td></tr>
+    <tr><th>Duplicate ZIP entries</th><td>{duplicate_entries}</td></tr>
   </table>
   {read_errors_block}
 
@@ -471,6 +478,17 @@ def render_html(
         starts_cdex=str(structure.starts_with_cdex_magic),
         janus_pattern=str(structure.janus_pattern_detected),
         is_zip=str(apk.is_valid_zip),
+        zip_comment_length=(
+            f"{structure.zip_comment_length} bytes"
+            + (" — contains binary data" if structure.zip_comment_is_binary else "")
+        ),
+        duplicate_entries=(
+            f"{len(structure.duplicate_entry_names)}: "
+            + ", ".join(
+                html.escape(n) for n in structure.duplicate_entry_names[:5]
+            )
+            if structure.duplicate_entry_names else "none"
+        ),
         read_errors_block=read_errors_block,
         findings_block=findings_block,
         mitigations_block=mitigations_block,

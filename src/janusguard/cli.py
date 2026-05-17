@@ -27,6 +27,16 @@ EXIT_READ_ERROR = 3
 
 _PATCH_LEVEL_RE = re.compile(r"^\d{4}(-\d{2}(-\d{2})?)?$")
 
+_ANSI_RESET = "\033[0m"
+_LEVEL_COLOUR = {
+    RiskLevel.OK:       "\033[32m",    # green
+    RiskLevel.INFO:     "\033[37m",    # light grey
+    RiskLevel.LOW:      "\033[36m",    # cyan
+    RiskLevel.MEDIUM:   "\033[33m",    # yellow
+    RiskLevel.HIGH:     "\033[31m",    # red
+    RiskLevel.CRITICAL: "\033[1;31m",  # bold red
+}
+
 # Resolve the default reports directory relative to the package, so reports
 # always land in <repo-root>/reports/ regardless of the working directory.
 # cli.py is at src/janusguard/cli.py → two dirname() calls reach the repo root.
@@ -111,10 +121,15 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _summary_for_stderr(apk_path: str, risk_level: RiskLevel, scheme_summary: str) -> str:
+def _summary_for_stderr(
+    apk_path: str, risk_level: RiskLevel, scheme_summary: str, colour: bool = False
+) -> str:
+    level_str = risk_level.value
+    if colour:
+        level_str = f"{_LEVEL_COLOUR[risk_level]}{level_str}{_ANSI_RESET}"
     return (
         f"[janusguard] {os.path.basename(apk_path)}: "
-        f"risk={risk_level.value} schemes={scheme_summary}"
+        f"risk={level_str} schemes={scheme_summary}"
     )
 
 
@@ -167,7 +182,10 @@ def _analyze_one(
 
     if not args.quiet:
         print(
-            _summary_for_stderr(apk_path, risk.overall, signatures.scheme_summary()),
+            _summary_for_stderr(
+                apk_path, risk.overall, signatures.scheme_summary(),
+                colour=sys.stderr.isatty(),
+            ),
             file=sys.stderr,
         )
 

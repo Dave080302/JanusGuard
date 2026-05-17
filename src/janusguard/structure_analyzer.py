@@ -25,6 +25,7 @@ DEX file format header constants live in AOSP at
 from __future__ import annotations
 
 import struct
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -89,6 +90,9 @@ class StructureFindings:
     starts_with_zip_magic: bool = False
     janus_pattern_detected: bool = False
     dex_declared_file_size: Optional[int] = None
+    zip_comment_length: int = 0
+    zip_comment_is_binary: bool = False
+    duplicate_entry_names: List[str] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
 
 
@@ -132,4 +136,27 @@ def analyze_structure(apk: ApkReadResult) -> StructureFindings:
     if findings.starts_with_dex_magic and apk.is_valid_zip:
         findings.janus_pattern_detected = True
 
+    _check_zip_comment(apk, findings)
+    _check_entry_anomalies(apk, findings)
+
     return findings
+
+
+def _check_zip_comment(apk: ApkReadResult, findings: StructureFindings) -> None:
+    """Inspect the ZIP comment field for unexpected or binary content."""
+    comment = apk.zip_comment
+    findings.zip_comment_length = len(comment)
+    if comment:
+        # Binary: any byte outside printable ASCII + common whitespace
+        findings.zip_comment_is_binary = any(
+            b < 0x20 and b not in (0x09, 0x0A, 0x0D) or b > 0x7E
+            for b in comment
+        )
+
+
+def _check_entry_anomalies(apk: ApkReadResult, findings: StructureFindings) -> None:
+    """Detect ZIP entry anomalies associated with tampered APKs."""
+    counts = Counter(apk.entry_names)
+    findings.duplicate_entry_names = sorted(
+        name for name, n in counts.items() if n > 1
+    )
