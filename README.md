@@ -266,8 +266,8 @@ See [`docs/safety.md`](docs/safety.md) for the complete scope statement.
 
 ## Authors
 
-- **David-Tudor Anghel** (UPB, MSc Cybersecurity)
-- **Omar Hossam Abdelmonem Mahmoud** (UPB, MSc Cybersecurity)
+- **David-Tudor Anghel** (UPB, MSc SAS)
+- **Omar Hossam Abdelmonem Mahmoud** (UPB, MSc SAS)
 
 This project is the team's *Assignment 3* deliverable for the **Security of Mobile Devices (SMD)** course, 2026 cohort.
 
