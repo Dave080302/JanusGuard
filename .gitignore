@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# JanusGuard runtime output. Sample report files are not committed; the
+# generated test fixtures (samples/*.apk) are also rebuildable on demand.
+reports/*.md
+reports/*.html
+reports/*.json
+!reports/.gitkeep
+
+# Users may drop real APKs into the samples directory for ad-hoc testing.
+# We only commit the synthetic generator and its README, not the .apk files.
+samples/*.apk
