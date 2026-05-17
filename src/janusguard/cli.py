@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from typing import List, Optional
 
 from janusguard import __version__
 from janusguard.apk_reader import ApkReadError, read_apk
-from janusguard.report_generator import render_html, render_markdown
+from janusguard.report_generator import render_html, render_json, render_markdown
 from janusguard.risk_engine import RiskLevel, TargetContext, assess_risk
 from janusguard.signature_analyzer import analyze_signatures
 from janusguard.structure_analyzer import analyze_structure
@@ -24,6 +25,7 @@ EXIT_CRITICAL = 30
 EXIT_USAGE = 2
 EXIT_READ_ERROR = 3
 
+_PATCH_LEVEL_RE = re.compile(r"^\d{4}(-\d{2}(-\d{2})?)?$")
 
 _EXIT_BY_LEVEL = {
     RiskLevel.OK: EXIT_OK,
@@ -49,8 +51,10 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "apk_path",
-        help="Path to the APK file to analyze.",
+        "apk_paths",
+        nargs="+",
+        metavar="apk_path",
+        help="Path(s) to APK file(s) to analyze. Multiple paths are accepted.",
     )
     parser.add_argument(
         "--android-version",
@@ -70,9 +74,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--format",
-        choices=("markdown", "html", "both"),
+        choices=("markdown", "html", "json", "all"),
         default="markdown",
-        help="Report format(s) to write. Default: markdown.",
+        help="Report format(s) to write. 'all' writes markdown, html, and json. Default: markdown.",
     )
     parser.add_argument(
         "-o",
@@ -83,7 +87,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--stdout",
         action="store_true",
-        help="Also print the Markdown report to stdout.",
+        help="Also print the Markdown report to stdout (or JSON when --format json).",
     )
     parser.add_argument(
         "--quiet",
@@ -105,36 +109,35 @@ def _summary_for_stderr(apk_path: str, risk_level: RiskLevel, scheme_summary: st
     )
 
 
-def main(argv: Optional[List[str]] = None) -> int:
-    parser = _build_parser()
-    args = parser.parse_args(argv)
-
+def _analyze_one(
+    apk_path: str, args: argparse.Namespace, target: TargetContext
+) -> Optional[RiskLevel]:
+    """Analyze a single APK and write report(s). Returns None on read error."""
     try:
-        apk = read_apk(args.apk_path)
+        apk = read_apk(apk_path)
     except ApkReadError as exc:
         print(f"error: {exc}", file=sys.stderr)
-        return EXIT_READ_ERROR
+        return None
 
     signatures = analyze_signatures(apk)
     structure = analyze_structure(apk)
-    target = TargetContext(
-        android_version=args.android_version,
-        patch_level=args.patch_level,
-    )
     risk = assess_risk(signatures, structure, target=target)
 
     os.makedirs(args.output_dir, exist_ok=True)
-    base = os.path.splitext(os.path.basename(args.apk_path))[0]
+    base = os.path.splitext(os.path.basename(apk_path))[0]
+    fmt = args.format
 
-    md_text = render_markdown(apk, signatures, structure, risk)
-    if args.format in ("markdown", "both"):
+    if fmt in ("markdown", "all"):
+        md_text = render_markdown(apk, signatures, structure, risk)
         md_path = os.path.join(args.output_dir, f"{base}.report.md")
         with open(md_path, "w", encoding="utf-8") as fh:
             fh.write(md_text)
         if not args.quiet:
             print(f"[janusguard] wrote {md_path}", file=sys.stderr)
+        if args.stdout and fmt == "markdown":
+            print(md_text)
 
-    if args.format in ("html", "both"):
+    if fmt in ("html", "all"):
         html_text = render_html(apk, signatures, structure, risk)
         html_path = os.path.join(args.output_dir, f"{base}.report.html")
         with open(html_path, "w", encoding="utf-8") as fh:
@@ -142,16 +145,63 @@ def main(argv: Optional[List[str]] = None) -> int:
         if not args.quiet:
             print(f"[janusguard] wrote {html_path}", file=sys.stderr)
 
-    if args.stdout:
-        print(md_text)
+    if fmt in ("json", "all"):
+        json_text = render_json(apk, signatures, structure, risk)
+        json_path = os.path.join(args.output_dir, f"{base}.report.json")
+        with open(json_path, "w", encoding="utf-8") as fh:
+            fh.write(json_text)
+        if not args.quiet:
+            print(f"[janusguard] wrote {json_path}", file=sys.stderr)
+        if args.stdout and fmt == "json":
+            print(json_text, end="")
 
     if not args.quiet:
         print(
-            _summary_for_stderr(args.apk_path, risk.overall, signatures.scheme_summary()),
+            _summary_for_stderr(apk_path, risk.overall, signatures.scheme_summary()),
             file=sys.stderr,
         )
 
-    return _EXIT_BY_LEVEL[risk.overall]
+    return risk.overall
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+
+    # Validate --patch-level format early so users get a clear error.
+    if args.patch_level and not _PATCH_LEVEL_RE.match(args.patch_level):
+        print(
+            f"error: --patch-level must be in YYYY-MM-DD form, got: {args.patch_level!r}",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+
+    target = TargetContext(
+        android_version=args.android_version,
+        patch_level=args.patch_level,
+    )
+
+    # Batch: collect the worst risk level across all APKs.
+    worst = RiskLevel.OK
+    had_read_error = False
+    for apk_path in args.apk_paths:
+        level = _analyze_one(apk_path, args, target)
+        if level is None:
+            had_read_error = True
+        elif level.severity > worst.severity:
+            worst = level
+
+    if len(args.apk_paths) > 1 and not args.quiet:
+        print(
+            f"[janusguard] {len(args.apk_paths)} files analyzed — "
+            f"worst risk: {worst.value}",
+            file=sys.stderr,
+        )
+
+    # If nothing was readable and no successful risk was found, report the read error.
+    if had_read_error and worst == RiskLevel.OK:
+        return EXIT_READ_ERROR
+    return _EXIT_BY_LEVEL[worst]
 
 
 if __name__ == "__main__":

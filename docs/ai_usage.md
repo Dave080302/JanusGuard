@@ -49,7 +49,7 @@ This page is that disclosure.
   test suite were drafted by the assistant and then reviewed.
 
 - **Implementation of well-specified modules.** Once we agreed on the API
-  for a module (e.g. *"`SignatureAnalyzer` takes an `ApkReadResult` and
+  for a module (e.g. *"`analyze_signatures` takes an `ApkReadResult` and
   returns a `SignatureFindings` dataclass with these fields"*), the
   assistant produced a first draft of the Python code. We reviewed each
   draft for:
@@ -74,6 +74,37 @@ This page is that disclosure.
   of file, signing-block magic in a comment, zero-length value, etc.) is a
   good use of a paired LLM. Each suggestion was evaluated individually
   before being turned into a test.
+
+- **Code review and bug finding.** In a subsequent session we asked the
+  assistant to audit the completed codebase and identify real defects. It
+  found — and we verified against the AOSP spec — an off-by-8 error in the
+  signing-block pair bounds check inside `_parse_signing_block_ids`
+  ([`signature_analyzer.py`](../src/janusguard/signature_analyzer.py),
+  line 300): the condition `cursor + 8 + pair_length > pairs_end + 8`
+  allowed a parsed pair to read 8 bytes into the trailing size field.
+  Corrected to `> pairs_end`.
+
+  A second cosmetic defect was also found: `head[:4]` was applied to a
+  variable `head` that was already `data[:4]` — redundant but harmless,
+  cleaned up in `structure_analyzer.py`.
+
+  A pre-existing test failure on Windows — `test_html_escapes_filename`
+  tried to create a file named `<weird&name>.apk`, which Windows forbids —
+  was fixed by injecting the special-character path via `dataclasses.replace`
+  instead of touching the filesystem.
+
+- **Feature extensions.** Three improvements were implemented with the
+  assistant in the same session:
+  - **JSON output** (`--format json` / `--format all`): a new
+    `render_json` function in `report_generator.py` produces a
+    machine-readable, pretty-printed JSON report suitable for CI pipelines
+    and `jq` queries.
+  - **Batch mode**: the CLI now accepts multiple APK paths in one
+    invocation; the exit code reflects the worst finding across all files.
+  - **`--patch-level` format validation**: previously a garbage string
+    was silently treated as "predates the fix", escalating risk without
+    warning the user. The CLI now validates the format and exits with a
+    usage error.
 
 ## How we kept the AI honest
 

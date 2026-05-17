@@ -22,7 +22,7 @@ def test_cli_modern_returns_ok(write_bytes, sample_modern_bytes, tmp_path):
         [
             apk_path,
             "--format",
-            "both",
+            "all",
             "--output-dir",
             str(out_dir),
             "--quiet",

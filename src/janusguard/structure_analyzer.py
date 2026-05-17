@@ -116,7 +116,7 @@ def analyze_structure(apk: ApkReadResult) -> StructureFindings:
         if len(data) >= 36:
             findings.dex_declared_file_size = struct.unpack_from("<I", data, 32)[0]
 
-    elif head[:4] == CDEX_MAGIC_PREFIX:
+    elif head == CDEX_MAGIC_PREFIX:
         findings.starts_with_cdex_magic = True
         findings.notes.append(
             "File starts with compact-DEX (cdex) magic - this is an internal "

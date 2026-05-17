@@ -70,12 +70,14 @@ JanusGuard never makes outbound connections. There is no rules-update
 mechanism, no analytics, no submission to a cloud service. The rule set is
 the Python code in `risk_engine.py`.
 
-## No Windows-specific testing
+## Windows compatibility
 
-The code is plain Python 3.9+ standard library and should work on Windows,
-but our test runs target Linux. File paths in reports use forward slashes;
-exit codes and the `python -m janusguard` entry point should behave
-identically on Windows, but we have not made that a tested invariant.
+The code is plain Python 3.9+ standard library and runs on Windows.
+The full test suite (47 tests) passes on Windows 11 with Python 3.13.
+One test (`test_html_escapes_filename`) was fixed to avoid creating a file
+with `<>&` in its name, which Windows forbids; the test now injects the
+special-character path via `dataclasses.replace` without touching the
+filesystem.
 
 ## Detection completeness
 

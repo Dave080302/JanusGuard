@@ -13,8 +13,8 @@ repository, running the tool, or grading the project can verify our scope.
   file magic bytes at offset 0, and the embedded ZIP End-of-Central-Directory
   record.
 - Classifies the APK against rules tied to the Janus vulnerability
-  (CVE-2017-13156) and produces a Markdown or HTML report with severity,
-  rationale, and mitigation guidance.
+  (CVE-2017-13156) and produces a Markdown, HTML, or JSON report with
+  severity, rationale, and mitigation guidance.
 
 ## What JanusGuard explicitly does NOT do
 

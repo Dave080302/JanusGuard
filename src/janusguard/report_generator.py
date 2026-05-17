@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime
 import html
+import json
 import os
 from typing import Iterable, List
 
@@ -304,6 +305,73 @@ def _html_finding(f: Finding) -> str:
         f"<p>{html.escape(f.detail)}</p>"
         f"</div>"
     )
+
+
+def render_json(
+    apk: ApkReadResult,
+    signatures: SignatureFindings,
+    structure: StructureFindings,
+    risk: RiskAssessment,
+) -> str:
+    """Render the analysis as a JSON string (pretty-printed)."""
+    from janusguard import __version__
+
+    doc = {
+        "janusguard_version": __version__,
+        "generated_at": _now_iso(),
+        "apk": {
+            "filename": os.path.basename(apk.path),
+            "path": apk.path,
+            "size_bytes": apk.file_size,
+            "sha256": apk.sha256,
+            "is_valid_zip": apk.is_valid_zip,
+            "read_errors": apk.read_errors,
+        },
+        "signatures": {
+            "has_v1": signatures.has_v1,
+            "has_v2": signatures.has_v2,
+            "has_v3": signatures.has_v3,
+            "has_v3_1": signatures.has_v3_1,
+            "has_signing_block": signatures.has_signing_block,
+            "v1_only": signatures.v1_only,
+            "is_unsigned": signatures.is_unsigned,
+            "scheme_summary": signatures.scheme_summary(),
+            "v1_files": signatures.v1_files,
+            "signing_block_ids": [
+                {"id": f"0x{rid:08x}", "label": SIGNING_BLOCK_IDS.get(rid, "unknown")}
+                for rid in signatures.signing_block_ids
+            ],
+            "signing_block_offset": signatures.signing_block_offset,
+            "notes": signatures.notes,
+        },
+        "structure": {
+            "starts_with_dex_magic": structure.starts_with_dex_magic,
+            "dex_version": structure.dex_version,
+            "starts_with_cdex_magic": structure.starts_with_cdex_magic,
+            "starts_with_zip_magic": structure.starts_with_zip_magic,
+            "janus_pattern_detected": structure.janus_pattern_detected,
+            "dex_declared_file_size": structure.dex_declared_file_size,
+            "notes": structure.notes,
+        },
+        "risk": {
+            "overall": risk.overall.value,
+            "target": {
+                "android_version": risk.target.android_version,
+                "patch_level": risk.target.patch_level,
+            },
+            "findings": [
+                {
+                    "code": f.code,
+                    "level": f.level.value,
+                    "title": f.title,
+                    "detail": f.detail,
+                }
+                for f in risk.findings
+            ],
+            "mitigations": risk.mitigations,
+        },
+    }
+    return json.dumps(doc, indent=2, ensure_ascii=False) + "\n"
 
 
 def render_html(

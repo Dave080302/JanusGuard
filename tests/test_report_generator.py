@@ -57,11 +57,16 @@ def test_html_is_well_formed(write_bytes, sample_v1_v2_bytes):
         assert html.count(f"<{tag}") == html.count(f"</{tag}>")
 
 
-def test_html_escapes_filename(write_bytes, sample_modern_bytes, tmp_path):
-    """Filenames with HTML-special characters must be escaped."""
-    p = tmp_path / "<weird&name>.apk"
-    p.write_bytes(sample_modern_bytes)
-    apk, sig, struct, risk = _pipeline(str(p))
+def test_html_escapes_filename(write_bytes, sample_modern_bytes):
+    """Filenames with HTML-special characters must be escaped in the report."""
+    # Write to a normal path, then manually override apk.path so the render
+    # function sees the special characters without needing to create an
+    # invalid filename on Windows (where <, >, & are forbidden).
+    import dataclasses
+
+    path = write_bytes("normal.apk", sample_modern_bytes)
+    apk, sig, struct, risk = _pipeline(path)
+    apk = dataclasses.replace(apk, path="/fake/<weird&name>.apk")
     html = render_html(apk, sig, struct, risk)
     assert "<weird&name>" not in html
     assert "&lt;weird&amp;name&gt;" in html

@@ -2,7 +2,7 @@
 
 **A static, non-executing analyzer for Android APK files that flags risk indicators consistent with the Janus vulnerability (CVE-2017-13156).**
 
-JanusGuard reads an APK from disk, inspects its signing schemes and ZIP/DEX layout, and produces a human-readable Markdown or HTML report. It never installs, executes, modifies, or uploads the APK.
+JanusGuard reads an APK from disk, inspects its signing schemes and ZIP/DEX layout, and produces a human-readable Markdown, HTML, or machine-readable JSON report. It never installs, executes, modifies, or uploads the APK.
 
 The tool is built for the *Security of Mobile Devices* (SMD) course at UPB and is intended as an educational defensive scanner. It is **not** an offensive tool, malware sample, or installer.
 
@@ -79,9 +79,10 @@ PYTHONPATH=src python -m janusguard --help
 The general form is:
 
 ```bash
-janusguard <path/to/file.apk> [--android-version X.Y] [--patch-level YYYY-MM-DD] \
-                              [--format markdown|html|both] \
-                              [--output-dir reports/] [--stdout] [--quiet]
+janusguard <path/to/file.apk> [<path/to/another.apk> ...] \
+           [--android-version X.Y] [--patch-level YYYY-MM-DD] \
+           [--format markdown|html|json|all] \
+           [--output-dir reports/] [--stdout] [--quiet]
 ```
 
 ### Quick examples
@@ -93,16 +94,24 @@ python samples/generate_samples.py
 # A clean, modern APK - expected verdict: OK.
 janusguard samples/sample_modern.apk
 
-# A Janus-style file - expected verdict: CRITICAL.
-janusguard samples/sample_janus_style.apk --format both
+# A Janus-style file - expected verdict: CRITICAL (all three report formats).
+janusguard samples/sample_janus_style.apk --format all
 
 # A legacy v1-only APK targeted at an unpatched Android 6.0 device - HIGH.
 janusguard samples/sample_v1_only.apk \
     --android-version 6.0 --patch-level 2017-09-01 \
-    --format both --stdout
+    --format all --stdout
+
+# Batch mode - analyze every APK in a directory, worst exit code wins.
+janusguard samples/*.apk --format json --output-dir reports/
+
+# Machine-readable output piped to jq.
+janusguard samples/sample_janus_style.apk --format json --stdout | jq '.risk.overall'
 ```
 
-The Markdown report goes to `reports/<name>.report.md`, the HTML version to `reports/<name>.report.html`. The terminal summary on stderr looks like:
+The Markdown report goes to `reports/<name>.report.md`, the HTML version to
+`reports/<name>.report.html`, and the JSON version to `reports/<name>.report.json`.
+The terminal summary on stderr looks like:
 
 ```text
 [janusguard] sample_janus_style.apk: risk=CRITICAL schemes=v1
@@ -112,12 +121,12 @@ The Markdown report goes to `reports/<name>.report.md`, the HTML version to `rep
 
 | Option | Purpose |
 |---|---|
-| `apk_path` (positional) | Path to the APK file to analyze. |
+| `apk_path` (positional, repeatable) | Path(s) to APK file(s) to analyze. Multiple paths are accepted. |
 | `--android-version` | Target Android marketing version, e.g. `6.0` or `8.0`. Used to sharpen the v1-only verdict. |
-| `--patch-level` | Target security patch level in `YYYY-MM-DD` form, e.g. `2017-11-05`. |
-| `--format {markdown,html,both}` | Report format to write. Default: `markdown`. |
+| `--patch-level` | Target security patch level in `YYYY-MM-DD` form, e.g. `2017-11-05`. Must be a valid date; an invalid format is a usage error. |
+| `--format {markdown,html,json,all}` | Report format(s) to write. `all` writes Markdown, HTML, and JSON. Default: `markdown`. |
 | `-o`, `--output-dir` | Directory to write reports into. Default: `./reports`. |
-| `--stdout` | Also print the Markdown report to stdout. |
+| `--stdout` | Also print the Markdown report (or JSON when `--format json`) to stdout. |
 | `--quiet` | Suppress the human summary on stderr. |
 | `--version` | Print the JanusGuard version. |
 
@@ -178,13 +187,13 @@ janusguard/
 ├── src/janusguard/
 │   ├── __init__.py            # package version and re-exports
 │   ├── __main__.py            # python -m janusguard entry
-│   ├── cli.py                 # argparse + main() function
+│   ├── cli.py                 # argparse + main(); batch mode
 │   ├── apk_reader.py          # safe file I/O and ZIP parsing
 │   ├── signature_analyzer.py  # v1 META-INF + APK Signing Block parsing
 │   ├── structure_analyzer.py  # DEX/ZIP magic + Janus pattern detection
 │   ├── risk_engine.py         # rule-based classifier
-│   └── report_generator.py    # Markdown + HTML rendering
-├── tests/                     # pytest suite (47 tests)
+│   └── report_generator.py    # Markdown + HTML + JSON rendering
+├── tests/                     # pytest suite (47 tests, passing on Windows)
 │   ├── conftest.py
 │   ├── test_apk_reader.py
 │   ├── test_signature_analyzer.py
@@ -200,7 +209,7 @@ janusguard/
 │   ├── safety.md              # safety and scope statement
 │   ├── limitations.md         # what JanusGuard does not do
 │   └── ai_usage.md            # required AI-usage disclosure
-└── reports/                   # generated reports land here
+└── reports/                   # generated reports (.md / .html / .json)
 ```
 
 ---
@@ -232,7 +241,7 @@ python -m black src tests samples
 
 ### Architecture in one paragraph
 
-`cli.py` parses arguments and calls `read_apk`, then hands the result to `analyze_signatures` and `analyze_structure`. Their outputs plus an optional `TargetContext` go to `assess_risk`, which produces a `RiskAssessment`. Finally, `render_markdown` and/or `render_html` produce the report. Each module is independently testable; see [`docs/design.md`](docs/design.md) for the full data-flow diagram.
+`cli.py` parses arguments (including optional multiple APK paths for batch mode), validates `--patch-level` format, then calls `read_apk` for each file. Each result is passed to `analyze_signatures` and `analyze_structure`. Their outputs plus an optional `TargetContext` go to `assess_risk`, which produces a `RiskAssessment`. Finally, `render_markdown`, `render_html`, and/or `render_json` produce the report(s). Each module is independently testable; see [`docs/design.md`](docs/design.md) for the full data-flow diagram.
 
 ### Code-review workflow
 

@@ -297,7 +297,7 @@ def _parse_signing_block_ids(data: bytes, block_start: int) -> List[int]:
         pair_length = struct.unpack_from("<Q", data, cursor)[0]
         if pair_length < 4:
             break
-        if cursor + 8 + pair_length > pairs_end + 8:
+        if cursor + 8 + pair_length > pairs_end:
             # Pair would run past the pairs region; malformed.
             break
         pair_id = struct.unpack_from("<I", data, cursor + 8)[0]
