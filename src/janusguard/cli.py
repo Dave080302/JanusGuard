@@ -27,6 +27,12 @@ EXIT_READ_ERROR = 3
 
 _PATCH_LEVEL_RE = re.compile(r"^\d{4}(-\d{2}(-\d{2})?)?$")
 
+# Resolve the default reports directory relative to the package, so reports
+# always land in <repo-root>/reports/ regardless of the working directory.
+# cli.py is at src/janusguard/cli.py → two dirname() calls reach the repo root.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_DEFAULT_REPORTS_DIR = os.path.join(_REPO_ROOT, "reports")
+
 _EXIT_BY_LEVEL = {
     RiskLevel.OK: EXIT_OK,
     RiskLevel.INFO: EXIT_OK,
@@ -75,14 +81,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--format",
         choices=("markdown", "html", "json", "all"),
-        default="markdown",
-        help="Report format(s) to write. 'all' writes markdown, html, and json. Default: markdown.",
+        default="html",
+        help="Report format(s) to write. 'all' writes markdown, html, and json. Default: html.",
     )
     parser.add_argument(
         "-o",
         "--output-dir",
-        default="reports",
-        help="Directory to write reports into. Default: ./reports",
+        default=None,
+        help=(
+            "Directory to write reports into. "
+            "Defaults to the repo-root reports/ folder."
+        ),
     )
     parser.add_argument(
         "--stdout",
@@ -123,13 +132,14 @@ def _analyze_one(
     structure = analyze_structure(apk)
     risk = assess_risk(signatures, structure, target=target)
 
-    os.makedirs(args.output_dir, exist_ok=True)
+    out_dir = args.output_dir or _DEFAULT_REPORTS_DIR
+    os.makedirs(out_dir, exist_ok=True)
     base = os.path.splitext(os.path.basename(apk_path))[0]
     fmt = args.format
 
     if fmt in ("markdown", "all"):
         md_text = render_markdown(apk, signatures, structure, risk)
-        md_path = os.path.join(args.output_dir, f"{base}.report.md")
+        md_path = os.path.join(out_dir, f"{base}.report.md")
         with open(md_path, "w", encoding="utf-8") as fh:
             fh.write(md_text)
         if not args.quiet:
@@ -139,7 +149,7 @@ def _analyze_one(
 
     if fmt in ("html", "all"):
         html_text = render_html(apk, signatures, structure, risk)
-        html_path = os.path.join(args.output_dir, f"{base}.report.html")
+        html_path = os.path.join(out_dir, f"{base}.report.html")
         with open(html_path, "w", encoding="utf-8") as fh:
             fh.write(html_text)
         if not args.quiet:
@@ -147,7 +157,7 @@ def _analyze_one(
 
     if fmt in ("json", "all"):
         json_text = render_json(apk, signatures, structure, risk)
-        json_path = os.path.join(args.output_dir, f"{base}.report.json")
+        json_path = os.path.join(out_dir, f"{base}.report.json")
         with open(json_path, "w", encoding="utf-8") as fh:
             fh.write(json_text)
         if not args.quiet:

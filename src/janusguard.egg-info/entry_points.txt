@@ -1,0 +1,2 @@
+[console_scripts]
+janusguard = janusguard.cli:main

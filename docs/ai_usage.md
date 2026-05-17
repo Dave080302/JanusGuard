@@ -5,10 +5,17 @@ This page is that disclosure.
 
 ## What we used
 
-- **Claude (Anthropic)** as a paired coding and research assistant during
-  implementation.
-- No code-generation IDE plugins, no autocomplete copilots, no fine-tuned
-  models. Plain chat with the assistant in a sandboxed environment.
+- **Claude (claude.ai, Anthropic)** — used via the browser to generate the
+  initial full implementation. We provided the research, the design
+  decisions, and the module specifications; Claude produced the first
+  complete draft of the codebase from that input.
+- **Claude Code (Anthropic)** — the Claude Code CLI integrated in the
+  VS Code extension — used for subsequent tuning, bug fixing, and adding
+  new features (JSON output, batch mode, patch-level validation). Claude
+  Code can read files, edit source code, and run shell commands directly
+  inside the project, making it well-suited for iterative refinement.
+- No separate autocomplete copilots or fine-tuned models. Every interaction
+  was an explicit, reviewed request, not passive inline suggestion.
 
 ## What we did *not* delegate to AI
 

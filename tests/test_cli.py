@@ -65,7 +65,7 @@ def test_cli_missing_file_returns_read_error(tmp_path):
     assert rc == EXIT_READ_ERROR
 
 
-def test_cli_writes_markdown_only_by_default(
+def test_cli_writes_html_only_by_default(
     write_bytes, sample_modern_bytes, tmp_path
 ):
     apk_path = write_bytes("modern.apk", sample_modern_bytes)
@@ -74,8 +74,8 @@ def test_cli_writes_markdown_only_by_default(
         [apk_path, "--output-dir", str(out_dir), "--quiet"]
     )
     assert rc == EXIT_OK
-    assert (out_dir / "modern.report.md").is_file()
-    assert not (out_dir / "modern.report.html").exists()
+    assert (out_dir / "modern.report.html").is_file()
+    assert not (out_dir / "modern.report.md").exists()
 
 
 def test_cli_android_version_escalates_v1_only(
